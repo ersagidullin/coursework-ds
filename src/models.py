@@ -1,6 +1,7 @@
 from sqlalchemy import Integer, Text, DateTime, String, JSON, ForeignKey, Boolean
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from datetime import datetime
+from typing import Optional
 
 
 class Base(DeclarativeBase):
@@ -25,16 +26,16 @@ class Repository(Base):
     __tablename__ = "repositories"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    readme: Mapped[str] = mapped_column(Text)
+    readme: Mapped[Optional[str]] = mapped_column(Text)
     releases_count: Mapped[int] = mapped_column(Integer)
     subscribers_count: Mapped[int] = mapped_column(Integer)
     stargazers_count: Mapped[int] = mapped_column(Integer)
     forks_count: Mapped[int] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime)
-    license_spdx_id: Mapped[str] = mapped_column(String)
+    license_spdx_id: Mapped[Optional[str]] = mapped_column(String)
     size: Mapped[int] = mapped_column(Integer)
     topics: Mapped[list[str]] = mapped_column(JSON)
-    pushed_at: Mapped[datetime] = mapped_column(DateTime)
+    pushed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
     user_repositories: Mapped[list["UserRepository"]] = relationship(
         "UserRepository", back_populates="repository", cascade="all, delete-orphan"
@@ -81,6 +82,6 @@ class User(Base):
     )
 
     login: Mapped[str] = mapped_column(String)
-    location: Mapped[str] = mapped_column(String)
-    company: Mapped[str] = mapped_column(String)
+    location: Mapped[Optional[str]] = mapped_column(String)
+    company: Mapped[Optional[str]] = mapped_column(String)
     is_organization: Mapped[bool] = mapped_column(Boolean)
