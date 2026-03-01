@@ -21,6 +21,11 @@ class Repository(Base):
     * topics: список топиков репозитория
     * pushed_at: дата последнего push
     * user_repositories: связи с пользователями
+    * languages_map: языки репозитория в %
+    * open_issues_count: количество открытых issues
+    * closed_issues_count: количество закрытых issues
+    * open_pr_count: количество открытых pullrequests
+    * merged_pr_count: количество смерженных pullrequests
     """
 
     __tablename__ = "repositories"
@@ -36,6 +41,11 @@ class Repository(Base):
     size: Mapped[int] = mapped_column(Integer)
     topics: Mapped[list[str]] = mapped_column(JSON)
     pushed_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    languages_map: Mapped[dict[str, float]] = mapped_column(JSON)
+    open_issues_count: Mapped[int] = mapped_column(Integer)
+    closed_issues_count: Mapped[int] = mapped_column(Integer)
+    open_pr_count: Mapped[int] = mapped_column(Integer)
+    merged_pr_count: Mapped[int] = mapped_column(Integer)
 
     user_repositories: Mapped[list["UserRepository"]] = relationship(
         "UserRepository", back_populates="repository", cascade="all, delete-orphan"
