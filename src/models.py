@@ -1,5 +1,5 @@
-from sqlalchemy import Integer, Text, DateTime, String, JSON, ForeignKey, Boolean
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy import Integer, Text, DateTime, String, JSON
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from datetime import datetime
 from typing import Optional
 
@@ -46,52 +46,3 @@ class Repository(Base):
     closed_issues_count: Mapped[int] = mapped_column(Integer)
     open_pr_count: Mapped[int] = mapped_column(Integer)
     merged_pr_count: Mapped[int] = mapped_column(Integer)
-
-    user_repositories: Mapped[list["UserRepository"]] = relationship(
-        "UserRepository", back_populates="repository", cascade="all, delete-orphan"
-    )
-
-
-class UserRepository(Base):
-    """
-    * user_id: id пользователя
-    * repository_id: id репозитория
-    * user: объект пользователя
-    * repository: объект репозитория
-    * is_owner: True - владелец; False - contributor
-    """
-
-    __tablename__ = "user_repositories"
-
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
-    repository_id: Mapped[int] = mapped_column(
-        ForeignKey("repositories.id"), primary_key=True
-    )
-    user: Mapped["User"] = relationship("User", back_populates="user_repositories")
-    repository: Mapped["Repository"] = relationship(
-        "Repository", back_populates="user_repositories"
-    )
-
-    is_owner: Mapped[bool] = mapped_column(Boolean)
-
-
-class User(Base):
-    """
-    * user_repositories: связи с репозиториями
-    * login: логин
-    * location: локация
-    * company: компания
-    * is_organization: True - организация; False - пользователь
-    """
-
-    __tablename__ = "users"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    user_repositories: Mapped[list["UserRepository"]] = relationship(
-        "UserRepository", back_populates="user", cascade="all, delete-orphan"
-    )
-
-    login: Mapped[str] = mapped_column(String)
-    location: Mapped[Optional[str]] = mapped_column(String)
-    company: Mapped[Optional[str]] = mapped_column(String)
-    is_organization: Mapped[bool] = mapped_column(Boolean)
