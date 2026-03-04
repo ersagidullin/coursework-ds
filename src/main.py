@@ -12,7 +12,7 @@ date_end = ""
 # функция с основной логикой программы (entry point)
 def main():
     repositories = api_get_repositories()
-    print(repositories)
+    print(repositories) # для теста
 
 # получение репозиториев через API
 def api_get_repositories():
