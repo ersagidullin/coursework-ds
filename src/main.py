@@ -11,7 +11,7 @@ date_end = ""
 
 # функция с основной логикой программы (entry point)
 def main():
-    repositories = api_get_repositories()
+    repositories = list(api_get_repositories())
     print(repositories) # для теста
 
 # получение репозиториев через API
@@ -27,12 +27,13 @@ def api_get_repositories():
     global date_start, date_end
     date_start = period[0]
     date_end = period[1]
+    filter = "is:public"
     if len(tokens)>0:
         fetcher = api.GitHubRepoFetcher(tokens[0])
-        repositories = fetcher.fetch_all_repos()
+        repositories = fetcher.fetch_repos(filter)
     else:
         fetcher = api.GitHubRepoFetcher()
-        repositories = fetcher.fetch_all_repos()
+        repositories = fetcher.fetch_repos(filter)
     return repositories
 
 # запуск основной логики программы

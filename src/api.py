@@ -56,9 +56,10 @@ class GitHubRepoFetcher:
         query: str = "is:public",
         per_page: int = 30,
         max_pages: Optional[int] = None,
-        sort: Optional[str] = None,
-        order: str = "desc"
-    ) -> Generator[Dict[str, Any], None, None]:
+        sort: Optional[str] = "created",
+        order: str = "asc"
+#    ) -> Generator[Dict[str, Any], None, None]:
+    ) -> List[Dict[str, Any]]:
         """
         Получает список публичных репозиториев, соответствующих поисковому запросу.
         Поддерживает пагинацию и возвращает результаты по одному (как генератор).
@@ -117,20 +118,3 @@ class GitHubRepoFetcher:
             #time.sleep(2)
             page += 1
             pages_loaded += 1
-
-    def fetch_all_repos(self, **kwargs) -> List[Dict[str, Any]]:
-        """
-        Удобный метод для получения ВСЕХ результатов в виде одного списка.
-        Использует тот же генератор `fetch_repos`.
-
-        Args:
-            **kwargs: Те же аргументы, что и у `fetch_repos` (кроме max_pages, он здесь игнорируется).
-
-        Returns:
-            Список всех словарей с данными репозиториев.
-        """
-        # Убираем max_pages из kwargs, если он там есть, чтобы загрузить всё
-        kwargs.pop('max_pages', None)
-        return list(self.fetch_repos(max_pages=None, **kwargs))
-
-
