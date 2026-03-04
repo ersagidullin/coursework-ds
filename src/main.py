@@ -27,13 +27,14 @@ def api_get_repositories():
     global date_start, date_end
     date_start = period[0]
     date_end = period[1]
-    filter = "is:public"
+    iso_str = date_start.isoformat(timespec='seconds').replace('+00:00', 'Z')
+    filter = "is:public+created:>" + iso_str
     if len(tokens)>0:
         fetcher = api.GitHubRepoFetcher(tokens[0])
-        repositories = fetcher.fetch_repos(filter)
+        repositories = fetcher.fetch_repos()
     else:
         fetcher = api.GitHubRepoFetcher()
-        repositories = fetcher.fetch_repos(filter)
+        repositories = fetcher.fetch_repos()
     return repositories
 
 # запуск основной логики программы

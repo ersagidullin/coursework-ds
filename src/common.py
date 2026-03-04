@@ -12,7 +12,7 @@ def get_tokens(tokens):
 
 # ввод периода загрузки пользователем
 def get_period(date_start="", date_end="", cancel = False):
-    from datetime import datetime, time
+    from datetime import datetime, time, timezone
     while date_start == "":
         date_str = input("Введите дату начала периода загрузки (dd.mm.yyyy) (0 - отмена загрузки)\n")
         #date_str = "01.01.2026"
@@ -23,6 +23,8 @@ def get_period(date_start="", date_end="", cancel = False):
             date_start = datetime.strptime(date_str, "%d.%m.%Y").date()
             print("Дата начала периода " + date_start.strftime("%d.%m.%Y"))
             date_start = datetime.combine(date_start, time(0, 0, 0))
+            # приводим дату к UTC для последующего форматирования в ISO 8601 и замены +00:00 на Z
+            date_start = date_start.astimezone(timezone.utc)
             break
         except ValueError:
             print("Ошибка! Неверный формат даты.")
@@ -36,6 +38,8 @@ def get_period(date_start="", date_end="", cancel = False):
             date_end = datetime.strptime(date_str, "%d.%m.%Y").date()
             print("Дата окончания периода " + date_end.strftime("%d.%m.%Y"))
             date_end = datetime.combine(date_end, time(23, 59, 59))
+            # приводим дату к UTC для последующего форматирования в ISO 8601 и замены +00:00 на Z
+            date_end = date_end.astimezone(timezone.utc)
             if date_start > date_end:
                 print("Дата начала периода не может быть больше даты окончания периода.")
             else:
