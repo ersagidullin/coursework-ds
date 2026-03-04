@@ -1,5 +1,11 @@
+"""
+API модуль.
+Содержит процедуры, получения данных через API.
+"""
+
 import requests
 from typing import Dict, List, Optional, Any, Generator
+import time
 
 class GitHubRepoFetcher:
     """
@@ -37,8 +43,8 @@ class GitHubRepoFetcher:
             Exception: Если запрос не удался или API вернул ошибку.
         """
         try:
-            response = self.session.get(self.BASE_URL, params=params, timeout=30)
-            response.raise_for_status()  # Выбросит исключение для HTTP ошибок (4xx или 5xx)
+            response = self.session.get(self.BASE_URL, params=params, timeout=100)
+            #response.raise_for_status()  # Выбросит исключение для HTTP ошибок (4xx или 5xx)
             return response.json()
         except requests.exceptions.RequestException as e:
             raise Exception(f"Ошибка при запросе к GitHub API: {e}")
@@ -108,7 +114,7 @@ class GitHubRepoFetcher:
                 print("Предупреждение: Результаты неполные (возможно, таймаут сервера).")
                 # В этом случае лучше остановиться, так как следующие страницы могут быть недоступны.
                 break
-
+            #time.sleep(2)
             page += 1
             pages_loaded += 1
 
