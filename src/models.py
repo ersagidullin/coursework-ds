@@ -20,12 +20,13 @@ class Repository(Base):
     * size: размер репозитория в килобайтах
     * topics: список топиков репозитория
     * pushed_at: дата последнего push
-    * user_repositories: связи с пользователями
     * languages_map: языки репозитория в %
     * open_issues_count: количество открытых issues
     * closed_issues_count: количество закрытых issues
     * open_pr_count: количество открытых pullrequests
     * merged_pr_count: количество смерженных pullrequests
+    * full_name: название репозитория
+    * contributors_count: количество контрибьюторов
     """
 
     __tablename__ = "repositories"
@@ -46,3 +47,5 @@ class Repository(Base):
     closed_issues_count: Mapped[int] = mapped_column(Integer)
     open_pr_count: Mapped[int] = mapped_column(Integer)
     merged_pr_count: Mapped[int] = mapped_column(Integer)
+    full_name: Mapped[str] = mapped_column(String)
+    contributors_count: Mapped[int] = mapped_column(Integer)
