@@ -1,120 +1,176 @@
-"""
-API модуль.
-Содержит процедуры, получения данных через API.
-"""
-
 import requests
-from typing import Dict, List, Optional, Any, Generator
-import time
+import base64
+from pydantic import BaseModel, ConfigDict
+from typing import Optional
+from datetime import datetime
 
-class GitHubRepoFetcher:
-    """
-    Класс для получения данных о репозиториях GitHub через API поиска.
-    """
-    # Базовый URL для поиска репозиториев
-    BASE_URL = "https://api.github.com/search/repositories"
 
-    def __init__(self, api_token: Optional[str] = None):
-        """
-        Инициализирует загрузчик.
+class RepositoryModel(BaseModel):
+    full_name: str
+    stargazers_count: int
+    forks_count: int
+    created_at: datetime
+    pushed_at: Optional[datetime] = None
+    topics: list[str] = []
 
-        Args:
-            api_token: Опциональный Personal Access Token для GitHub API.
-                      Использование токена увеличивает лимиты скорости запросов.
-        """
-        self.api_token = api_token
-        self.session = requests.Session()
-        if api_token:
-            self.session.headers.update({"Authorization": f"token {api_token}"})
-        # Рекомендуется указывать User-Agent
-        self.session.headers.update({"Accept": "application/vnd.github.v3+json"})
+    model_config = ConfigDict(extra="ignore")
 
-    def _make_request(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Внутренний метод для выполнения запроса к API и обработки ответа.
 
-        Args:
-            params: Параметры запроса (словарь).
+def decode_readme(content: str):
+    decoded = base64.b64decode(content)
+    return decoded.decode("utf-8", errors="replace")
 
-        Returns:
-            Словарь с данными ответа от API.
 
-        Raises:
-            Exception: Если запрос не удался или API вернул ошибку.
-        """
-        try:
-            response = self.session.get(self.BASE_URL, params=params, timeout=100)
-            #response.raise_for_status()  # Выбросит исключение для HTTP ошибок (4xx или 5xx)
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            raise Exception(f"Ошибка при запросе к GitHub API: {e}")
-        except ValueError as e:
-            raise Exception(f"Ошибка при разборе JSON ответа: {e}")
+class GithubApi:
+    def __init__(self, token: str):
+        self.base_url = "https://api.github.com"
+        self.headers = {
+            "Accept": "application/vnd.github.v3+json",
+            "User-Agent": "GitHub-Research/1.0",
+            "Authorization": f"Bearer {token}",
+        }
 
-    def fetch_repos(
-        self,
-        query: str = "is:public",
-        per_page: int = 30,
-        max_pages: Optional[int] = None,
-        sort: Optional[str] = "created",
-        order: str = "asc"
-#    ) -> Generator[Dict[str, Any], None, None]:
-    ) -> List[Dict[str, Any]]:
-        """
-        Получает список публичных репозиториев, соответствующих поисковому запросу.
-        Поддерживает пагинацию и возвращает результаты по одному (как генератор).
+    def _get_count_from_link(self, url, params=None):
+        response = requests.get(url, headers=self.headers, params=params)
+        response.raise_for_status()
+        link = response.headers.get("Link", "")
 
-        Args:
-            query: Поисковый запрос в формате GitHub. По умолчанию "is:public".
-            per_page: Количество результатов на страницу (макс. 100).
-            max_pages: Максимальное количество страниц для загрузки (None - все доступные).
-            sort: Поле для сортировки (напр., 'stars', 'forks', 'updated').
-            order: Порядок сортировки ('desc' или 'asc').
+        if 'rel="last"' in link:
+            import re
 
-        Yields:
-            Словарь с данными одного репозитория (элемент из списка 'items').
+            match = re.search(r'page=(\d+)>; rel="last"', link)
+            if match:
+                return int(match.group(1))
 
-        Пример:
-            fetcher = GitHubRepoFetcher()
-            for repo in fetcher.fetch_repos(query="language:python", sort="stars", per_page=10):
-                print(repo['name'], repo['stargazers_count'])
-        """
-        page = 1
-        pages_loaded = 0
+        return len(response.json())
 
-        while True:
-            if max_pages is not None and pages_loaded >= max_pages:
-                break
+    def search_repo(self, query: str, page: int, per_page: int):
+        url = f"{self.base_url}/search/repositories"
+        params = {"q": query, "page": page, "per_page": per_page}
+        response = requests.get(url, headers=self.headers, params=params)
+        response.raise_for_status()
+        data = response.json()
 
-            # Формируем параметры для текущей страницы
-            params = {
-                "q": query,
-                "per_page": min(per_page, 100),  # API ограничивает 100
-                "page": page
-            }
-            if sort:
-                params["sort"] = sort
-                params["order"] = order
+        return [RepositoryModel.model_validate(repo) for repo in data["items"]]
 
-            print(f"Загрузка страницы {page}...") # Для отладки
-            data = self._make_request(params)
+    def get_repo(self, owner: str, repo: str):
+        url = f"{self.base_url}/repos/{owner}/{repo}"
+        response = requests.get(url, headers=self.headers)
+        response.raise_for_status()
+        return RepositoryModel.model_validate(response.json())
 
-            # Обрабатываем элементы на текущей странице
-            items = data.get('items', [])
-            for repo in items:
-                yield repo
+    def get_readme(self, owner: str, repo: str):
+        url = f"{self.base_url}/repos/{owner}/{repo}/readme"
+        response = requests.get(url, headers=self.headers)
+        response.raise_for_status()
+        data = response.json()
+        content = data.get("content", "")
+        return decode_readme(content)
 
-            # Проверяем, есть ли еще страницы
-            # GitHub API возвращает информацию о ссылках в заголовках, но для простоты
-            # будем ориентироваться на количество полученных элементов.
-            if len(items) < per_page:
-                break # Это была последняя страница
+    def get_releases_count(self, owner: str, repo: str, page: int, per_page: int):
+        url = f"{self.base_url}/repos/{owner}/{repo}/releases"
+        return self._get_count_from_link(url, {"per_page": 1})
 
-            # Также можно проверить флаг incomplete_results
-            if data.get('incomplete_results', False):
-                print("Предупреждение: Результаты неполные (возможно, таймаут сервера).")
-                # В этом случае лучше остановиться, так как следующие страницы могут быть недоступны.
-                break
-            #time.sleep(2)
-            page += 1
-            pages_loaded += 1
+    def get_contributors_count(self, owner: str, repo: str):
+        url = f"{self.base_url}/repos/{owner}/{repo}/contributors"
+        return self._get_count_from_link(url, {"per_page": 1, "anon": "true"})
+
+    def get_languages(self, owner: str, repo: str):
+        url = f"{self.base_url}/repos/{owner}/{repo}/languages"
+        response = requests.get(url, headers=self.headers)
+        response.raise_for_status()
+        data = response.json()
+        total = sum(data.values())
+        if total == 0:
+            return {}
+
+        return {
+            language: round(bytes_count / total * 100, 2)
+            for language, bytes_count in data.items()
+        }
+
+    def get_issues_count(self, owner: str, repo: str, is_closed: bool):
+        state = "closed" if is_closed else "open"
+
+        url = f"{self.base_url}/search/issues"
+        params = {"q": f"repo:{owner}/{repo} type:issue state:{state}"}
+
+        response = requests.get(url, headers=self.headers, params=params)
+        response.raise_for_status()
+
+        return response.json()["total_count"]
+
+    def get_pr_count(self, owner: str, repo: str, is_closed: bool):
+        state = "closed" if is_closed else "open"
+
+        url = f"{self.base_url}/search/issues"
+        params = {"q": f"repo:{owner}/{repo} type:pr state:{state}"}
+
+        response = requests.get(url, headers=self.headers, params=params)
+        response.raise_for_status()
+
+        return response.json()["total_count"]
+
+    def get_commits_count(self, owner: str, repo: str):
+        url = f"{self.base_url}/repos/{owner}/{repo}/commits"
+        return self._get_count_from_link(url, {"per_page": 1})
+
+
+if __name__ == "__main__":
+    token = ""
+
+    api = GithubApi(token)
+
+    owner = "psf"
+    repo = "requests"
+
+    print("---- SEARCH ----")
+    search_result = api.search_repo("python requests", 1, 5)
+
+    print("Found repositories:", len(search_result))
+    for r in search_result:
+        print(f"{r.full_name} | {r.stargazers_count} | forks: {r.forks_count}")
+
+    print()
+
+    print("---- REPO INFO ----")
+    repo_info = api.get_repo(owner, repo)
+
+    print("Name:", repo_info.full_name)
+    print("Stars:", repo_info.stargazers_count)
+    print("Forks:", repo_info.forks_count)
+    print("Created at:", repo_info.created_at)
+    print("Last push:", repo_info.pushed_at)
+    print("Topics:", repo_info.topics)
+
+    print()
+
+    print("---- README ----")
+    readme = api.get_readme(owner, repo)
+    print(readme[:500])
+    print()
+
+    print("---- RELEASES ----")
+    print("Releases (<=100):", api.get_releases_count(owner, repo, 1, 100))
+    print()
+
+    print("---- CONTRIBUTORS ----")
+    print("Contributors (<=100):", api.get_contributors_count(owner, repo))
+    print()
+
+    print("---- LANGUAGES ----")
+    print(api.get_languages(owner, repo))
+    print()
+
+    print("---- ISSUES ----")
+    print("Open issues:", api.get_issues_count(owner, repo, False))
+    print("Closed issues:", api.get_issues_count(owner, repo, True))
+    print()
+
+    print("---- PULL REQUESTS ----")
+    print("Open PR:", api.get_pr_count(owner, repo, False))
+    print("Merged PR:", api.get_pr_count(owner, repo, True))
+    print()
+
+    print("---- COMMITS ----")
+    print("Commits", api.get_commits_count(owner, repo))
