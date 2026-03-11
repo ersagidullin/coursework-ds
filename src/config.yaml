@@ -1,0 +1,8 @@
+---
+# токен GitHub для обращения к API указывается в файле secrets.yaml в виде списка в формате:
+#token:
+#  - youer_token_1
+#  - youer_token_2
+#  - youer_token_3
+test: 22
+...
