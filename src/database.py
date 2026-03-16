@@ -2,21 +2,22 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from models import Base
 
-DATABASE_URL = "postgresql://postgres@localhost:5432/github"
 
-engine = create_engine(
-    DATABASE_URL,
-    echo=True,
-    future=True,
-)
+class Database:
+    def __init__(self, database_url: str):
+        self.engine = create_engine(
+            database_url,
+            echo=True,
+            future=True,
+        )
+        self.SessionLocal = sessionmaker(
+            bind=self.engine,
+            autoflush=False,
+            autocommit=False,
+        )
 
-SessionLocal = sessionmaker(
-    bind=engine,
-    autoflush=False,
-    autocommit=False,
-)
+    def create_tables(self):
+        Base.metadata.create_all(self.engine)
 
-Base.metadata.create_all(engine)
-
-with SessionLocal() as session:
-    print("connected!")
+    def get_session(self):
+        return self.SessionLocal()

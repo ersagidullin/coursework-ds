@@ -1,17 +1,24 @@
 import requests
 import base64
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional
 from datetime import datetime
 
 
+class OwnerModel(BaseModel):
+    login: str
+    type: str
+
+
 class RepositoryModel(BaseModel):
+    github_id: int = Field(alias="id")
     full_name: str
     stargazers_count: int
     forks_count: int
     created_at: datetime
     pushed_at: Optional[datetime] = None
     topics: list[str] = []
+    owner: OwnerModel
 
     model_config = ConfigDict(extra="ignore")
 
@@ -21,7 +28,7 @@ def decode_readme(content: str):
     return decoded.decode("utf-8", errors="replace")
 
 
-class GithubApi:
+class GitHubAPI:
     def __init__(self, token: str):
         self.base_url = "https://api.github.com"
         self.headers = {
@@ -50,7 +57,6 @@ class GithubApi:
         response = requests.get(url, headers=self.headers, params=params)
         response.raise_for_status()
         data = response.json()
-
         return [RepositoryModel.model_validate(repo) for repo in data["items"]]
 
     def get_repo(self, owner: str, repo: str):
@@ -67,7 +73,7 @@ class GithubApi:
         content = data.get("content", "")
         return decode_readme(content)
 
-    def get_releases_count(self, owner: str, repo: str, page: int, per_page: int):
+    def get_releases_count(self, owner: str, repo: str):
         url = f"{self.base_url}/repos/{owner}/{repo}/releases"
         return self._get_count_from_link(url, {"per_page": 1})
 
@@ -115,62 +121,15 @@ class GithubApi:
         url = f"{self.base_url}/repos/{owner}/{repo}/commits"
         return self._get_count_from_link(url, {"per_page": 1})
 
+    def get_owner_location(self, owner: OwnerModel):
+        if owner.type == "User":
+            url = f"{self.base_url}/users/{owner.login}"
+        elif owner.type == "Organization":
+            url = f"{self.base_url}/orgs/{owner.login}"
+        else:
+            return None
 
-if __name__ == "__main__":
-    token = ""
-
-    api = GithubApi(token)
-
-    owner = "psf"
-    repo = "requests"
-
-    print("---- SEARCH ----")
-    search_result = api.search_repo("python requests", 1, 5)
-
-    print("Found repositories:", len(search_result))
-    for r in search_result:
-        print(f"{r.full_name} | {r.stargazers_count} | forks: {r.forks_count}")
-
-    print()
-
-    print("---- REPO INFO ----")
-    repo_info = api.get_repo(owner, repo)
-
-    print("Name:", repo_info.full_name)
-    print("Stars:", repo_info.stargazers_count)
-    print("Forks:", repo_info.forks_count)
-    print("Created at:", repo_info.created_at)
-    print("Last push:", repo_info.pushed_at)
-    print("Topics:", repo_info.topics)
-
-    print()
-
-    print("---- README ----")
-    readme = api.get_readme(owner, repo)
-    print(readme[:500])
-    print()
-
-    print("---- RELEASES ----")
-    print("Releases (<=100):", api.get_releases_count(owner, repo, 1, 100))
-    print()
-
-    print("---- CONTRIBUTORS ----")
-    print("Contributors (<=100):", api.get_contributors_count(owner, repo))
-    print()
-
-    print("---- LANGUAGES ----")
-    print(api.get_languages(owner, repo))
-    print()
-
-    print("---- ISSUES ----")
-    print("Open issues:", api.get_issues_count(owner, repo, False))
-    print("Closed issues:", api.get_issues_count(owner, repo, True))
-    print()
-
-    print("---- PULL REQUESTS ----")
-    print("Open PR:", api.get_pr_count(owner, repo, False))
-    print("Merged PR:", api.get_pr_count(owner, repo, True))
-    print()
-
-    print("---- COMMITS ----")
-    print("Commits", api.get_commits_count(owner, repo))
+        response = requests.get(url, headers=self.headers)
+        response.raise_for_status()
+        data = response.json()
+        return data.get("location")
