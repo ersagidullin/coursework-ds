@@ -1,6 +1,13 @@
 from database import Database
 from crud import RepoCRUD
 from api import GitHubAPI
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 
 class GitHubETL:
@@ -60,8 +67,5 @@ class GitHubETL:
 
 
 if __name__ == "__main__":
-    DATABASE_URL = "postgresql://postgres@localhost:5432/github"
-    GITHUB_TOKEN = ""
-
     etl = GitHubETL(token=GITHUB_TOKEN, database_url=DATABASE_URL)
     etl.main()
