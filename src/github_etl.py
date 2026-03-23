@@ -44,7 +44,7 @@ class GitHubETL:
             "github_id": repo_model.github_id,
             "readme": readme,
             "releases_count": releases_count,
-            "subscribers_count": repo_model.stargazers_count,
+            "subscribers_count": repo_model.subscribers_count,
             "stargazers_count": repo_model.stargazers_count,
             "forks_count": repo_model.forks_count,
             "created_at": repo_model.created_at,

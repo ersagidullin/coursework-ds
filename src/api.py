@@ -13,6 +13,7 @@ class OwnerModel(BaseModel):
 class RepositoryModel(BaseModel):
     github_id: int = Field(alias="id")
     full_name: str
+    subscribers_count: Optional[int] = None
     stargazers_count: int
     forks_count: int
     created_at: datetime
