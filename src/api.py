@@ -10,6 +10,10 @@ class OwnerModel(BaseModel):
     type: str
 
 
+class LicenseModel(BaseModel):
+    spdx_id: Optional[str] = None
+
+
 class RepositoryModel(BaseModel):
     github_id: int = Field(alias="id")
     full_name: str
@@ -20,6 +24,7 @@ class RepositoryModel(BaseModel):
     pushed_at: Optional[datetime] = None
     topics: list[str] = []
     owner: OwnerModel
+    license: Optional[LicenseModel] = None
 
     model_config = ConfigDict(extra="ignore")
 

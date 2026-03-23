@@ -48,7 +48,9 @@ class GitHubETL:
             "stargazers_count": repo_model.stargazers_count,
             "forks_count": repo_model.forks_count,
             "created_at": repo_model.created_at,
-            "license_spdx_id": None,
+            "license_spdx_id": (
+                repo_model.license.spdx_id if repo_model.license else None
+            ),
             "topics": repo_model.topics,
             "pushed_at": repo_model.pushed_at,
             "languages_map": languages_map,
