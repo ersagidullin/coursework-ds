@@ -2,6 +2,7 @@ from sqlalchemy import Integer, Text, DateTime, String, JSON, BigInteger
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from datetime import datetime
 from typing import Optional
+from api import RepositorySnapshot
 
 
 class Base(DeclarativeBase):
@@ -55,25 +56,5 @@ class Repository(Base):
     owner_location: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     @classmethod
-    def from_github_api(cls, data: dict) -> "Repository":
-        return cls(
-            github_id=data["github_id"],
-            readme=data.get("readme"),
-            releases_count=data.get("releases_count", 0),
-            subscribers_count=data.get("subscribers_count", 0),
-            stargazers_count=data.get("stargazers_count", 0),
-            forks_count=data.get("forks_count", 0),
-            created_at=data["created_at"],
-            license_spdx_id=data.get("license_spdx_id"),
-            topics=data.get("topics", []),
-            pushed_at=data.get("pushed_at"),
-            languages_map=data.get("languages_map", {}),
-            open_issues_count=data.get("open_issues_count", 0),
-            closed_issues_count=data.get("closed_issues_count", 0),
-            open_pr_count=data.get("open_pr_count", 0),
-            closed_pr_count=data.get("closed_pr_count", 0),
-            full_name=data["full_name"],
-            contributors_count=data.get("contributors_count", 0),
-            commits_count=data.get("commits_count", 0),
-            owner_location=data.get("owner_location"),
-        )
+    def from_snapshot(cls, snapshot: RepositorySnapshot):
+        return cls(**snapshot.model_dump())

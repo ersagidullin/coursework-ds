@@ -4,21 +4,17 @@ from sqlalchemy import and_
 from models import Repository
 
 
-class RepoCRUD:
+class RepositoryService:
     def __init__(self, session: Session):
         self.session = session
 
-    def insert_repo(self, repo_data: Dict[str, Any]) -> Repository:
-        repo = Repository.from_github_api(repo_data)
+    def insert_repo(self, repo: Repository) -> Repository:
         merged = self.session.merge(repo)
         self.session.commit()
         return merged
 
-    def insert_many_repos(self, repos_list: List[Dict[str, Any]]) -> List[Repository]:
-        repo_objects = [Repository.from_github_api(data) for data in repos_list]
-        inserted = []
-        for repo in repo_objects:
-            inserted.append(self.session.merge(repo))
+    def insert_many_repos(self, repos: List[Repository]) -> List[Repository]:
+        inserted = [self.session.merge(repo) for repo in repos]
         self.session.commit()
         return inserted
 
