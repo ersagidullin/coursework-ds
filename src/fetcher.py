@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, Generator, List
 from dataclasses import dataclass
 
-from github_api import GitHubAPI
+from api import GitHubAPI
 from crud import RepoCRUD
 
 @dataclass
