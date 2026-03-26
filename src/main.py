@@ -25,16 +25,8 @@ def main():
     fetcher = GitHubFetcher(api)
     result = list(fetcher.fetch_repositories(period[0], period[1]))
     for res in result:
-        #inserted = crud.insert_many_repos(res[0])
-        for i in res[0]:
-            #i[0]['id'] = 0
-            #i['commits_count'] = 0
-            #i['owner_location'] = ""
-            #i['closed_pr_count'] = 0
-            inserted = crud.insert_repo(i)
-            a = 1
+        inserted = crud.insert_many_repos(res[0])
 
-    a = 1
 # запуск основной логики программы
 if __name__ == "__main__":
     main()
