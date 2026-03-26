@@ -120,7 +120,10 @@ class GitHubFetcher:
             self.stats['requests'] += 1
 
             repo_dict = repo_info.model_dump()
-            repo_dict['owner'] = {"login": owner, 'type': 'User'}
+            #repo_dict['owner'] = {"login": owner, 'type': 'User'}
+            #+++ ВасильевВВ (type заполняется из API)
+            repo_dict['owner'] = {"login": owner, 'type': repo_info.owner.type}
+            #--- ВасильевВВ (type заполняется из API)
 
             try:
                 repo_dict['readme'] = self.api.get_readme(owner, name)
@@ -138,12 +141,23 @@ class GitHubFetcher:
             repo_dict['languages_map'] = self.api.get_languages(owner, name)
             self.stats['requests'] += 1
 
+            #+++ ВасильевВВ (добавил отсутствующие поля)
+            repo_dict['commits_count'] = self.api.get_commits_count(owner, name)
+            self.stats['requests'] += 1
+
+            repo_dict['owner_location'] = self.api.get_owner_location(repo_info.owner)
+            self.stats['requests'] += 1
+            #--- ВасильевВВ (добавил отсутствующие поля)
+
             repo_dict['open_issues_count'] = self.api.get_issues_count(owner, name, False)
             repo_dict['closed_issues_count'] = self.api.get_issues_count(owner, name, True)
             self.stats['requests'] += 2
 
             repo_dict['open_pr_count'] = self.api.get_pr_count(owner, name, False)
-            repo_dict['merged_pr_count'] = self.api.get_pr_count(owner, name, True)
+            #repo_dict['merged_pr_count'] = self.api.get_pr_count(owner, name, True)
+            #+++ ВасильевВВ (перепутано поле)
+            repo_dict['closed_pr_count'] = self.api.get_pr_count(owner, name, True)
+            #--- ВасильевВВ
             self.stats['requests'] += 2
 
             repo_dict['subscribers_count'] = getattr(repo_info, 'subscribers_count', 0)

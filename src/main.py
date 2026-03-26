@@ -28,9 +28,9 @@ def main():
         #inserted = crud.insert_many_repos(res[0])
         for i in res[0]:
             #i[0]['id'] = 0
-            i['commits_count'] = 0
-            i['owner_location'] = ""
-            i['closed_pr_count'] = 0
+            #i['commits_count'] = 0
+            #i['owner_location'] = ""
+            #i['closed_pr_count'] = 0
             inserted = crud.insert_repo(i)
             a = 1
 
