@@ -34,7 +34,7 @@ class Repository(Base):
 
     __tablename__ = "repositories"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     github_id: Mapped[int] = mapped_column(BigInteger, unique=True)
     readme: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     releases_count: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -58,3 +58,31 @@ class Repository(Base):
     @classmethod
     def from_snapshot(cls, snapshot: RepositorySnapshot):
         return cls(**snapshot.model_dump())
+
+    @classmethod
+    def from_github_api(cls, data: dict):
+        """
+        Создаёт экземпляр Repository из сырых данных, полученных от GitHub API.
+        """
+        owner = data.get('owner', {})
+        return cls(
+            #id=data['id'],
+            github_id=data['github_id'],
+            readme=data['readme'],
+            releases_count=data['releases_count'],
+            subscribers_count=data['subscribers_count'],
+            stargazers_count=data['stargazers_count'],
+            forks_count=data['forks_count'],
+            created_at=data['created_at'],
+            license_spdx_id=data['license_spdx_id'],
+            topics=data['topics'],
+            languages_map=data['languages_map'],
+            open_issues_count=data['open_issues_count'],
+            closed_issues_count=data['closed_issues_count'],
+            open_pr_count=data['open_pr_count'],
+            closed_pr_count=data['closed_pr_count'],
+            full_name=data['full_name'],
+            contributors_count=data['contributors_count'],
+            commits_count=data['commits_count'],
+            owner_location=data['owner_location'],
+        )

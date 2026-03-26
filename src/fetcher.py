@@ -24,8 +24,7 @@ class GitHubFetcher:
 
         self._progress = None
 
-    def fetch_repositories( self, start_date: datetime, end_date: datetime, min_stars: int = 1000, \
-        max_repos_per_day: Optional[int] = None, resume_from: Optional[FetchProgress] = None)-> Generator[List[Dict[str, Any]], FetchProgress, None]:
+    def fetch_repositories( self, start_date: datetime, end_date: datetime, min_stars: int = 1000, max_repos_per_day: Optional[int] = None, resume_from: Optional[FetchProgress] = None)-> Generator[List[Dict[str, Any]], FetchProgress, None]:
         if resume_from:
             current_date = resume_from.current_date
             page = resume_from.page
