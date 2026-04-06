@@ -1,8 +1,9 @@
 import time
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, Generator, List
+from typing import Optional, Dict, Tuple, Generator, List
 from dataclasses import dataclass
 
+from models import Repository
 from github_api import GitHubAPI
 from crud import RepoCRUD
 
@@ -15,24 +16,47 @@ class FetchProgress:
     errors: int
 
 class GitHubFetcher:
-    def __init__(self, api: GitHubAPI, crud: Optional[RepoCRUD] = None, delay: float = 4.0, batch_size: int = 100):
+    def __init__(self, api: GitHubAPI, crud: Optional[RepoCRUD] = None, delay: float = 4.0, batch_size: int = 100, batches_per_send: int = 10):
         self.api = api
         self.crud = crud
         self.delay = delay
         self.batch_size = batch_size
-        self.stats = {"fetched":0, "errors":0, "requests":0, "batches": 0}
+        self.batches_per_send = batches_per_send
+        self.stats = {"fetched":0, "errors":0, "requests":0, "batches": 0, "big_batches": 0}
 
         self._progress = None
 
-    def fetch_repositories( self, start_date: datetime, end_date: datetime, min_stars: int = 1000, \
-        max_repos_per_day: Optional[int] = None, resume_from: Optional[FetchProgress] = None)-> Generator[List[Dict[str, Any]], FetchProgress, None]:
+    def _flush_buffer(self, buffer: List[List[Repository]], current_batch: List[Repository], current_date: datetime, page: int,
+                      total_in_interval: int) -> Generator[Tuple[List[Repository], FetchProgress], None, None]:
+
+        if current_batch:
+            buffer.append(current_batch)
+
+        if not buffer:
+            return
+
+        big_batch = []
+        for batch in buffer:
+            big_batch.extend(batch)
+
+        self.stats['big_batches'] += 1
+        progress = FetchProgress(current_date=current_date, page=page, fetched_in_interval=total_in_interval,
+                                 total_fetched=self.stats['fetched'], errors=self.stats['errors'])
+
+        yield big_batch, progress
+
+    def fetch_repositories(self, start_date: datetime, end_date: datetime, min_stars: int = 1000, max_repos_per_day: Optional[int] = None,
+            resume_from: Optional[FetchProgress] = None) -> Generator[Tuple[List[Repository], FetchProgress], None, None]:
+
         if resume_from:
             current_date = resume_from.current_date
             page = resume_from.page
+            print(f" Возобновляем с {current_date.date()}, страница {page}")
         else:
             current_date = start_date
             page = 1
 
+        buffer = []
         current_batch = []
         total_in_interval = 0
 
@@ -43,9 +67,16 @@ class GitHubFetcher:
             try:
                 repos_data = self.api.search_repo(query, page, per_page=100)
                 self.stats['requests'] += 1
+                print(f"Получено {len(repos_data)} репозиториев")
 
                 if not repos_data:
-                    print(f"День {date_str}: нет данных, переходим к следующему")
+                    print(f"Нет данных, переходим к следующему дню")
+
+                    for result in self._flush_buffer(buffer, current_batch, current_date, page, total_in_interval):
+                        yield result
+                    buffer = []
+                    current_batch = []
+
                     current_date += timedelta(days=1)
                     page = 1
                     total_in_interval = 0
@@ -53,24 +84,25 @@ class GitHubFetcher:
 
                 for repo_model in repos_data:
                     try:
-                        repo_dict = self._fetch_repo_full_data(repo_model.full_name)
+                        repo_obj = self._fetch_repo_full_data(repo_model.full_name)
 
-                        if repo_dict:
-                            current_batch.append(repo_dict)
+                        if repo_obj:
+                            current_batch.append(repo_obj)
                             total_in_interval += 1
                             self.stats['fetched'] += 1
 
+
                             if len(current_batch) >= self.batch_size:
                                 self.stats['batches'] += 1
-                                progress = FetchProgress(
-                                    current_date=current_date,
-                                    page=page,
-                                    fetched_in_interval=total_in_interval,
-                                    total_fetched=self.stats['fetched'],
-                                    errors=self.stats['errors']
-                                )
-                                yield current_batch, progress
+                                buffer.append(current_batch)
                                 current_batch = []
+
+                                if len(buffer) >= self.batches_per_send:
+                                    for result in self._flush_buffer(buffer, current_batch, current_date, page,
+                                                                     total_in_interval):
+                                        yield result
+                                    buffer = []
+                                    current_batch = []
 
                     except Exception as e:
                         print(f" Ошибка обработки {repo_model.full_name}: {e}")
@@ -79,7 +111,6 @@ class GitHubFetcher:
                     time.sleep(self.delay)
 
                 if len(repos_data) < 100:
-                    print(f"День {date_str}: завершен ({total_in_interval} репозиториев)")
                     current_date += timedelta(days=1)
                     page = 1
                     total_in_interval = 0
@@ -88,6 +119,12 @@ class GitHubFetcher:
 
                 if max_repos_per_day and total_in_interval >= max_repos_per_day:
                     print(f"Достигнут лимит дня ({max_repos_per_day}), переходим к следующему")
+
+                    for result in self._flush_buffer(buffer, current_batch, current_date, page, total_in_interval):
+                        yield result
+                    buffer = []
+                    current_batch = []
+
                     current_date += timedelta(days=1)
                     page = 1
                     total_in_interval = 0
@@ -98,59 +135,64 @@ class GitHubFetcher:
                 time.sleep(self.delay * 5)
                 continue
 
-        if current_batch:
-            self.stats['batches'] += 1
-            progress = FetchProgress(
-                current_date=current_date,
-                page=page,
-                fetched_in_interval=total_in_interval,
-                total_fetched=self.stats['fetched'],
-                errors=self.stats['errors']
-            )
-            yield current_batch, progress
+        for result in self._flush_buffer(buffer, current_batch, current_date, page, total_in_interval):
+            yield result
 
-        print(f"\n Сбор завершен!")
-        print(f"Статистика: {self.stats}")
-
-
-    def _fetch_repo_full_data(self, full_name:str) -> Optional[Dict[str, Any]]:
+    def _fetch_repo_full_data(self, full_name:str) -> Optional[Repository]:
         owner, name = full_name.split('/')
 
         try:
             repo_info = self.api.get_repo(owner, name)
             self.stats['requests'] += 1
 
-            repo_dict = repo_info.model_dump()
-            repo_dict['owner'] = {"login": owner, 'type': 'User'}
 
             try:
-                repo_dict['readme'] = self.api.get_readme(owner, name)
+                readme = self.api.get_readme(owner, name)
                 self.stats['requests'] += 1
             except Exception:
-                repo_dict['readme'] = None
+                readme = None
 
 
-            repo_dict['releases_count'] = self.api.get_releases_count(owner, name)
+            releases_count = self.api.get_releases_count(owner, name)
             self.stats['requests'] += 1
 
-            repo_dict['contributors_count'] = self.api.get_contributors_count(owner, name)
+            contributors_count = self.api.get_contributors_count(owner, name)
             self.stats['requests'] += 1
 
-            repo_dict['languages_map'] = self.api.get_languages(owner, name)
+            languages_map = self.api.get_languages(owner, name)
             self.stats['requests'] += 1
 
-            repo_dict['open_issues_count'] = self.api.get_issues_count(owner, name, False)
-            repo_dict['closed_issues_count'] = self.api.get_issues_count(owner, name, True)
+            open_issues_count= self.api.get_issues_count(owner, name, False)
+            closed_issues_count = self.api.get_issues_count(owner, name, True)
             self.stats['requests'] += 2
 
-            repo_dict['open_pr_count'] = self.api.get_pr_count(owner, name, False)
-            repo_dict['merged_pr_count'] = self.api.get_pr_count(owner, name, True)
+            open_pr_count = self.api.get_pr_count(owner, name, False)
+            merged_pr_count = self.api.get_pr_count(owner, name, True)
             self.stats['requests'] += 2
 
-            repo_dict['subscribers_count'] = getattr(repo_info, 'subscribers_count', 0)
-            repo_dict['license_spdx_id'] = getattr(repo_info, 'license_spdx_id', None)
+            subscribers_count = getattr(repo_info, 'subscribers_count', 0)
+            license_spdx_id = getattr(repo_info, 'license_spdx_id', None)
 
-            return repo_dict
+            repo = Repository(
+                full_name=full_name,
+                readme = readme,
+                releases_count=releases_count,
+                subscribers_count=subscribers_count,
+                stargazers_count=repo_info.stargazers_count,
+                forks_count=repo_info.forks_count,
+                created_at=repo_info.created_at,
+                license_spdx_id=license_spdx_id,
+                topics=repo_info.topics if hasattr(repo_info, 'topics') else [],
+                pushed_at=repo_info.pushed_at,
+                languages_map=languages_map,
+                open_issues_count=open_issues_count,
+                closed_issues_count=closed_issues_count,
+                open_pr_count=open_pr_count,
+                merged_pr_count=merged_pr_count,
+                contributors_count=contributors_count
+            )
+
+            return repo
 
         except Exception as e:
             print(f"Не удалось получить {full_name}: {e}")
@@ -163,4 +205,4 @@ class GitHubFetcher:
 
 
     def reset_stats(self):
-        self.stats = {'fetched': 0, 'errors': 0, 'requests': 0}
+        self.stats = {'fetched': 0, 'errors': 0, 'requests': 0, "batches": 0}
