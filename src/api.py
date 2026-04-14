@@ -26,6 +26,7 @@ class RepositoryModel(BaseModel):
     owner: OwnerModel
     license: Optional[LicenseModel] = None
     description: Optional[str] = None
+    size: int = 0
 
     model_config = ConfigDict(extra="ignore")
 
@@ -52,6 +53,7 @@ class RepositorySnapshot(BaseModel):
     owner_location: Optional[str] = None
     description: Optional[str] = None
     owner_type: str
+    size: int = 0
 
 
 def decode_readme(content: str):

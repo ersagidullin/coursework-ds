@@ -32,6 +32,7 @@ class Repository(Base):
     * owner_location: местоположение владельца
     * description: описание репозитория
     * owner_type: тип владельца (user или organization)
+    * size: размер репозитория в килобайтах
     """
 
     __tablename__ = "repositories"
@@ -58,6 +59,7 @@ class Repository(Base):
     owner_location: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     owner_type: Mapped[str] = mapped_column(String, nullable=False)
+    size: Mapped[int] = mapped_column(Integer, nullable=False)
 
     @classmethod
     def from_snapshot(cls, snapshot: RepositorySnapshot):
