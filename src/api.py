@@ -72,6 +72,29 @@ class PullRequestStatsModel(BaseModel):
     merged_recent: int = 0
     draft_recent: int = 0
 
+class RecentIssueModel(BaseModel):
+    number: int
+    title: str
+    author: Optional[str] = None
+    state: str
+    created_at: datetime
+    updated_at: datetime
+    closed_at: Optional[datetime] = None
+    comments: int = 0
+    labels: list[str] = Field(default_factory=list)
+    is_pull_request: bool = False
+
+
+class IssueStatsModel(BaseModel):
+    total_count: int = 0
+    open_count: int = 0
+    closed_count: int = 0
+    last_issue_at: Optional[datetime] = None
+    issues_30d: int = 0
+    issues_90d: int = 0
+    unique_authors_recent: int = 0
+    closed_recent: int = 0
+
 class RepositorySnapshot(BaseModel):
     github_id: int
     full_name: str
@@ -85,8 +108,6 @@ class RepositorySnapshot(BaseModel):
     topics: list[str] = Field(default_factory=list)
     pushed_at: Optional[datetime] = None
     languages_map: dict[str, float] = Field(default_factory=dict)
-    open_issues_count: int = 0
-    closed_issues_count: int = 0
     contributors_count: int = 0
     owner_location: Optional[str] = None
     description: Optional[str] = None
@@ -98,6 +119,8 @@ class RepositorySnapshot(BaseModel):
     root_contents: list[dict] = Field(default_factory=list)
     pull_request_stats: dict[str, Any] = Field(default_factory=dict)
     recent_pull_requests: list[dict[str, Any]] = Field(default_factory=list)
+    issue_stats: dict[str, Any] = Field(default_factory=dict)
+    recent_issues: list[dict[str, Any]] = Field(default_factory=list)
 
 
 def decode_readme(content: str):
@@ -172,16 +195,114 @@ class GitHubAPI:
             for language, bytes_count in data.items()
         }
 
-    def get_issues_count(self, owner: str, repo: str, is_closed: bool):
-        state = "closed" if is_closed else "open"
-
+    def get_issue_count(self, owner: str, repo: str, state: str = "all") -> int:
         url = f"{self.base_url}/search/issues"
-        params = {"q": f"repo:{owner}/{repo} type:issue state:{state}"}
+        query = f"repo:{owner}/{repo} type:issue"
+
+        if state in {"open", "closed"}:
+            query += f" state:{state}"
+
+        params = {"q": query}
+        response = requests.get(url, headers=self.headers, params=params)
+        response.raise_for_status()
+        return response.json()["total_count"]
+
+
+    def get_recent_issues(self, owner: str, repo: str, limit: int = 30):
+        url = f"{self.base_url}/repos/{owner}/{repo}/issues"
+        params = {
+            "state": "all",
+            "sort": "updated",
+            "direction": "desc",
+            "per_page": limit,
+        }
 
         response = requests.get(url, headers=self.headers, params=params)
         response.raise_for_status()
+        data = response.json()
 
-        return response.json()["total_count"]
+        recent_issues = []
+        unique_authors = set()
+        closed_recent = 0
+        issues_30d = 0
+        issues_90d = 0
+        last_issue_at = None
+
+        now = datetime.utcnow()
+
+        for idx, item in enumerate(data):
+            if "pull_request" in item:
+                continue
+
+            user_data = item.get("user") or {}
+            author = user_data.get("login")
+
+            created_at_str = item.get("created_at")
+            updated_at_str = item.get("updated_at")
+            closed_at_str = item.get("closed_at")
+
+            if not created_at_str or not updated_at_str:
+                continue
+
+            created_at = datetime.fromisoformat(created_at_str.replace("Z", "+00:00")).replace(tzinfo=None)
+            updated_at = datetime.fromisoformat(updated_at_str.replace("Z", "+00:00")).replace(tzinfo=None)
+            closed_at = (
+                datetime.fromisoformat(closed_at_str.replace("Z", "+00:00")).replace(tzinfo=None)
+                if closed_at_str else None
+            )
+
+            if last_issue_at is None:
+                last_issue_at = updated_at
+
+            if author:
+                unique_authors.add(author)
+
+            if item.get("state") == "closed":
+                closed_recent += 1
+
+            delta_days = (now - created_at).days
+            if delta_days <= 30:
+                issues_30d += 1
+            if delta_days <= 90:
+                issues_90d += 1
+
+            labels = []
+            for label in item.get("labels", []):
+                if isinstance(label, dict):
+                    name = label.get("name")
+                    if name:
+                        labels.append(name)
+
+            recent_issues.append(
+                {
+                    "number": item.get("number"),
+                    "title": (item.get("title") or "")[:500],
+                    "author": author,
+                    "state": item.get("state"),
+                    "created_at": created_at.isoformat(),
+                    "updated_at": updated_at.isoformat(),
+                    "closed_at": closed_at.isoformat() if closed_at else None,
+                    "comments": item.get("comments", 0),
+                    "labels": labels,
+                    "is_pull_request": "pull_request" in item,
+                }
+            )
+
+            if len(recent_issues) >= limit:
+                break
+
+        issue_stats = {
+            "total_count": self.get_issue_count(owner, repo, state="all"),
+            "open_count": self.get_issue_count(owner, repo, state="open"),
+            "closed_count": self.get_issue_count(owner, repo, state="closed"),
+            "last_issue_at": last_issue_at.isoformat() if last_issue_at else None,
+            "issues_30d": issues_30d,
+            "issues_90d": issues_90d,
+            "unique_authors_recent": len(unique_authors),
+            "closed_recent": closed_recent,
+        }
+
+        return recent_issues, issue_stats
 
     def get_commits_count(self, owner: str, repo: str):
         url = f"{self.base_url}/repos/{owner}/{repo}/commits"

@@ -201,9 +201,10 @@ class GitHubFetcher:
             languages_map = self.api.get_languages(owner, name)
             self.stats["requests"] += 1
 
-            open_issues_count = self.api.get_issues_count(owner, name, False)
-            closed_issues_count = self.api.get_issues_count(owner, name, True)
-            self.stats["requests"] += 2
+            recent_issues, issue_stats = self.api.get_recent_issues(
+                owner, name, limit=30
+            )
+            self.stats["requests"] += 4
 
             recent_pull_requests, pull_request_stats = (
                 self.api.get_recent_pull_requests(owner, name, limit=30)
@@ -239,8 +240,6 @@ class GitHubFetcher:
                 topics=repo_info.topics or [],
                 pushed_at=repo_info.pushed_at,
                 languages_map=languages_map,
-                open_issues_count=open_issues_count,
-                closed_issues_count=closed_issues_count,
                 contributors_count=contributors_count,
                 owner_location=owner_location,
                 description=repo_info.description,
@@ -252,6 +251,8 @@ class GitHubFetcher:
                 root_contents=root_contents,
                 pull_request_stats=pull_request_stats,
                 recent_pull_requests=recent_pull_requests,
+                issue_stats=issue_stats,
+                recent_issues=recent_issues,
             )
 
             return Repository.from_snapshot(snapshot)
