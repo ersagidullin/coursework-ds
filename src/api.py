@@ -51,7 +51,7 @@ class RepositorySnapshot(BaseModel):
     commits_count: int = 0
     owner_location: Optional[str] = None
     description: Optional[str] = None
-
+    owner_type: str
 
 
 def decode_readme(content: str):
