@@ -73,6 +73,7 @@ class RepositorySnapshot(BaseModel):
     has_github_actions: bool = False
     recent_commits: list[dict[str, Any]] = Field(default_factory=list)
     commit_stats: dict[str, Any] = Field(default_factory=dict)
+    root_contents: list[dict] = Field(default_factory=list)
 
 
 def decode_readme(content: str):
@@ -268,3 +269,25 @@ class GitHubAPI:
         }
 
         return recent_commits, commit_stats
+
+    def get_root_contents(self, owner: str, repo: str) -> list[dict]:
+        url = f"{self.base_url}/repos/{owner}/{repo}/contents"
+        response = requests.get(url, headers=self.headers)
+
+        if response.status_code == 404:
+            return []
+
+        response.raise_for_status()
+        data = response.json()
+
+        result = []
+
+        for item in data:
+            result.append({
+                "name": item.get("name"),
+                "path": item.get("path"),
+                "type": item.get("type"),
+                "size": item.get("size", 0)
+            })
+
+        return result

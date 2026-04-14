@@ -218,6 +218,9 @@ class GitHubFetcher:
             recent_commits, commit_stats = self.api.get_recent_commits(owner, name, limit=30)
             self.stats["requests"] += 2
 
+            root_contents = self.api.get_root_contents(owner, name)
+            self.stats["requests"] += 1
+
             snapshot = RepositorySnapshot(
                 github_id=repo_info.github_id,
                 full_name=repo_info.full_name,
@@ -244,7 +247,8 @@ class GitHubFetcher:
                 size=repo_info.size,
                 has_github_actions=has_actions,
                 recent_commits=recent_commits,
-                commit_stats=commit_stats
+                commit_stats=commit_stats,
+                root_contents=root_contents,
             )
 
             return Repository.from_snapshot(snapshot)

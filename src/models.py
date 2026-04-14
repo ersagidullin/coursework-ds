@@ -22,10 +22,10 @@ class Repository(Base):
     * topics: список топиков репозитория
     * pushed_at: дата последнего push
     * languages_map: языки репозитория в %
-    * open_issues_count: количество открытых issues
-    * closed_issues_count: количество закрытых issues
-    * open_pr_count: количество открытых pullrequests
-    * closed_pr_count: количество закрытых pullrequests
+    # * open_issues_count: количество открытых issues
+    # * closed_issues_count: количество закрытых issues
+    # * open_pr_count: количество открытых pullrequests
+    # * closed_pr_count: количество закрытых pullrequests
     * full_name: название репозитория
     * contributors_count: количество контрибьюторов
     * owner_location: местоположение владельца
@@ -35,6 +35,7 @@ class Repository(Base):
     * has_github_actions: использование gitHub actions
     * recent_commits: список последних коммитов
     * commit_stats: статистика по коммитам
+    * root_contents: содержимое корневой директории
     """
 
     __tablename__ = "repositories"
@@ -64,6 +65,7 @@ class Repository(Base):
     has_github_actions: Mapped[bool] = mapped_column(Boolean, nullable=False)
     recent_commits: Mapped[list[dict]] = mapped_column(JSON, default=list)
     commit_stats: Mapped[dict] = mapped_column(JSON, default=dict)
+    root_contents: Mapped[list[dict]] = mapped_column(JSON, default=list)
 
     @classmethod
     def from_snapshot(cls, snapshot: RepositorySnapshot):
