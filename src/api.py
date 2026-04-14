@@ -25,6 +25,7 @@ class RepositoryModel(BaseModel):
     topics: list[str] = []
     owner: OwnerModel
     license: Optional[LicenseModel] = None
+    description: Optional[str] = None
 
     model_config = ConfigDict(extra="ignore")
 
@@ -49,6 +50,8 @@ class RepositorySnapshot(BaseModel):
     contributors_count: int = 0
     commits_count: int = 0
     owner_location: Optional[str] = None
+    description: Optional[str] = None
+
 
 
 def decode_readme(content: str):
@@ -161,28 +164,3 @@ class GitHubAPI:
         response.raise_for_status()
         data = response.json()
         return data.get("location")
-
-    def get_repository_snapshot(self, owner: str, repo: str) -> RepositorySnapshot:
-        repo_model = self.get_repo(owner, repo)
-
-        return RepositorySnapshot(
-            github_id=repo_model.github_id,
-            full_name=repo_model.full_name,
-            readme=self.get_readme(owner, repo),
-            releases_count=self.get_releases_count(owner, repo),
-            subscribers_count=repo_model.subscribers_count or 0,
-            stargazers_count=repo_model.stargazers_count,
-            forks_count=repo_model.forks_count,
-            created_at=repo_model.created_at,
-            license_spdx_id=repo_model.license.spdx_id if repo_model.license else None,
-            topics=repo_model.topics,
-            pushed_at=repo_model.pushed_at,
-            languages_map=self.get_languages(owner, repo),
-            open_issues_count=self.get_issues_count(owner, repo, is_closed=False),
-            closed_issues_count=self.get_issues_count(owner, repo, is_closed=True),
-            open_pr_count=self.get_pr_count(owner, repo, is_closed=False),
-            closed_pr_count=self.get_pr_count(owner, repo, is_closed=True),
-            contributors_count=self.get_contributors_count(owner, repo),
-            commits_count=self.get_commits_count(owner, repo),
-            owner_location=self.get_owner_location(repo_model.owner),
-        )

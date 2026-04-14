@@ -237,6 +237,7 @@ class GitHubFetcher:
                 contributors_count=contributors_count,
                 commits_count=commits_count,
                 owner_location=owner_location,
+                description=repo_info.description
             )
 
             return Repository.from_snapshot(snapshot)
