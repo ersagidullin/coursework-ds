@@ -1,7 +1,7 @@
 import requests
 import base64
 from pydantic import BaseModel, ConfigDict, Field
-from typing import Optional
+from typing import Optional, Any
 from datetime import datetime
 
 
@@ -22,13 +22,30 @@ class RepositoryModel(BaseModel):
     forks_count: int
     created_at: datetime
     pushed_at: Optional[datetime] = None
-    topics: list[str] = []
+    topics: list[str] = Field(default_factory=list)
     owner: OwnerModel
     license: Optional[LicenseModel] = None
     description: Optional[str] = None
     size: int = 0
 
     model_config = ConfigDict(extra="ignore")
+
+
+class RecentCommitModel(BaseModel):
+    sha: str
+    author: Optional[str] = None
+    date: datetime
+    message: str
+    is_merge: bool
+
+
+class CommitStatsModel(BaseModel):
+    total_count: int = 0
+    last_commit_at: Optional[datetime] = None
+    commits_30d: int = 0
+    commits_90d: int = 0
+    unique_authors_recent: int = 0
+    merge_commits_recent: int = 0
 
 
 class RepositorySnapshot(BaseModel):
@@ -49,12 +66,13 @@ class RepositorySnapshot(BaseModel):
     open_pr_count: int = 0
     closed_pr_count: int = 0
     contributors_count: int = 0
-    commits_count: int = 0
     owner_location: Optional[str] = None
     description: Optional[str] = None
     owner_type: str
     size: int = 0
     has_github_actions: bool = False
+    recent_commits: list[dict[str, Any]] = Field(default_factory=list)
+    commit_stats: dict[str, Any] = Field(default_factory=dict)
 
 
 def decode_readme(content: str):
@@ -167,7 +185,7 @@ class GitHubAPI:
         response.raise_for_status()
         data = response.json()
         return data.get("location")
-    
+
     def has_github_actions(self, owner: str, repo: str) -> bool:
         url = f"{self.base_url}/repos/{owner}/{repo}/actions/workflows"
         response = requests.get(url, headers=self.headers)
@@ -175,3 +193,78 @@ class GitHubAPI:
 
         data = response.json()
         return data.get("total_count", 0) > 0
+
+    def get_recent_commits(self, owner: str, repo: str, limit: int = 30):
+        url = f"{self.base_url}/repos/{owner}/{repo}/commits"
+        response = requests.get(url, headers=self.headers, params={"per_page": limit})
+        response.raise_for_status()
+
+        data = response.json()
+        recent_commits = []
+
+        unique_authors = set()
+        merge_commits_recent = 0
+        commits_30d = 0
+        commits_90d = 0
+        last_commit_at = None
+
+        now = datetime.utcnow()
+
+        for idx, item in enumerate(data):
+            commit_data = item.get("commit", {})
+            author_data = item.get("author")
+            commit_author_data = commit_data.get("author", {})
+
+            sha = item.get("sha", "")
+            message_full = commit_data.get("message", "") or ""
+            message = message_full.splitlines()[0][:500]
+            author = (
+                author_data.get("login")
+                if isinstance(author_data, dict)
+                else commit_author_data.get("name")
+            )
+
+            date_str = commit_author_data.get("date")
+            if not date_str:
+                continue
+
+            commit_date = datetime.fromisoformat(
+                date_str.replace("Z", "+00:00")
+            ).replace(tzinfo=None)
+            is_merge = message.startswith("Merge ") or message.startswith("Merged ")
+
+            if idx == 0:
+                last_commit_at = commit_date
+
+            if author:
+                unique_authors.add(author)
+
+            if is_merge:
+                merge_commits_recent += 1
+
+            delta_days = (now - commit_date).days
+            if delta_days <= 30:
+                commits_30d += 1
+            if delta_days <= 90:
+                commits_90d += 1
+
+            recent_commits.append(
+                {
+                    "sha": sha[:7],
+                    "author": author,
+                    "date": commit_date.isoformat(),
+                    "message": message,
+                    "is_merge": is_merge,
+                }
+            )
+
+        commit_stats = {
+            "total_count": self.get_commits_count(owner, repo),
+            "last_commit_at": last_commit_at.isoformat() if last_commit_at else None,
+            "commits_30d": commits_30d,
+            "commits_90d": commits_90d,
+            "unique_authors_recent": len(unique_authors),
+            "merge_commits_recent": merge_commits_recent,
+        }
+
+        return recent_commits, commit_stats

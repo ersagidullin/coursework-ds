@@ -28,12 +28,13 @@ class Repository(Base):
     * closed_pr_count: количество закрытых pullrequests
     * full_name: название репозитория
     * contributors_count: количество контрибьюторов
-    * commits_count: количество коммитов
     * owner_location: местоположение владельца
     * description: описание репозитория
     * owner_type: тип владельца (user или organization)
     * size: размер репозитория в килобайтах
     * has_github_actions: использование gitHub actions
+    * recent_commits: список последних коммитов
+    * commit_stats: статистика по коммитам
     """
 
     __tablename__ = "repositories"
@@ -56,12 +57,13 @@ class Repository(Base):
     closed_pr_count: Mapped[int] = mapped_column(Integer, nullable=False)
     full_name: Mapped[str] = mapped_column(String, nullable=False)
     contributors_count: Mapped[int] = mapped_column(Integer, nullable=False)
-    commits_count: Mapped[int] = mapped_column(Integer, nullable=False)
     owner_location: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     owner_type: Mapped[str] = mapped_column(String, nullable=False)
     size: Mapped[int] = mapped_column(Integer, nullable=False)
     has_github_actions: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    recent_commits: Mapped[list[dict]] = mapped_column(JSON, default=list)
+    commit_stats: Mapped[dict] = mapped_column(JSON, default=dict)
 
     @classmethod
     def from_snapshot(cls, snapshot: RepositorySnapshot):
