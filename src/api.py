@@ -54,6 +54,7 @@ class RepositorySnapshot(BaseModel):
     description: Optional[str] = None
     owner_type: str
     size: int = 0
+    has_github_actions: bool = False
 
 
 def decode_readme(content: str):
@@ -166,3 +167,11 @@ class GitHubAPI:
         response.raise_for_status()
         data = response.json()
         return data.get("location")
+    
+    def has_github_actions(self, owner: str, repo: str) -> bool:
+        url = f"{self.base_url}/repos/{owner}/{repo}/actions/workflows"
+        response = requests.get(url, headers=self.headers)
+        response.raise_for_status()
+
+        data = response.json()
+        return data.get("total_count", 0) > 0

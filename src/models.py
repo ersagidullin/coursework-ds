@@ -1,4 +1,4 @@
-from sqlalchemy import Integer, Text, DateTime, String, JSON, BigInteger
+from sqlalchemy import Boolean, Integer, Text, DateTime, String, JSON, BigInteger
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from datetime import datetime
 from typing import Optional
@@ -33,6 +33,7 @@ class Repository(Base):
     * description: описание репозитория
     * owner_type: тип владельца (user или organization)
     * size: размер репозитория в килобайтах
+    * has_github_actions: использование gitHub actions
     """
 
     __tablename__ = "repositories"
@@ -60,6 +61,7 @@ class Repository(Base):
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     owner_type: Mapped[str] = mapped_column(String, nullable=False)
     size: Mapped[int] = mapped_column(Integer, nullable=False)
+    has_github_actions: Mapped[bool] = mapped_column(Boolean, nullable=False)
 
     @classmethod
     def from_snapshot(cls, snapshot: RepositorySnapshot):

@@ -215,6 +215,9 @@ class GitHubFetcher:
             owner_location = self.api.get_owner_location(repo_info.owner)
             self.stats["requests"] += 1
 
+            has_actions = self.api.has_github_actions(owner, name)
+            self.stats["requests"] += 1
+
             snapshot = RepositorySnapshot(
                 github_id=repo_info.github_id,
                 full_name=repo_info.full_name,
@@ -240,6 +243,7 @@ class GitHubFetcher:
                 description=repo_info.description,
                 owner_type=repo_info.owner.type,
                 size=repo_info.size,
+                has_github_actions=has_actions
             )
 
             return Repository.from_snapshot(snapshot)
