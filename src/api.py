@@ -47,6 +47,30 @@ class CommitStatsModel(BaseModel):
     unique_authors_recent: int = 0
     merge_commits_recent: int = 0
 
+class RecentPullRequestModel(BaseModel):
+    number: int
+    title: str
+    author: Optional[str] = None
+    state: str
+    created_at: datetime
+    updated_at: datetime
+    closed_at: Optional[datetime] = None
+    merged_at: Optional[datetime] = None
+    is_draft: bool = False
+    is_merged: bool = False
+
+
+class PullRequestStatsModel(BaseModel):
+    total_count: int = 0
+    open_count: int = 0
+    closed_count: int = 0
+    merged_count: int = 0
+    last_pr_at: Optional[datetime] = None
+    prs_30d: int = 0
+    prs_90d: int = 0
+    unique_requestors_recent: int = 0
+    merged_recent: int = 0
+    draft_recent: int = 0
 
 class RepositorySnapshot(BaseModel):
     github_id: int
@@ -63,8 +87,6 @@ class RepositorySnapshot(BaseModel):
     languages_map: dict[str, float] = Field(default_factory=dict)
     open_issues_count: int = 0
     closed_issues_count: int = 0
-    open_pr_count: int = 0
-    closed_pr_count: int = 0
     contributors_count: int = 0
     owner_location: Optional[str] = None
     description: Optional[str] = None
@@ -74,6 +96,8 @@ class RepositorySnapshot(BaseModel):
     recent_commits: list[dict[str, Any]] = Field(default_factory=list)
     commit_stats: dict[str, Any] = Field(default_factory=dict)
     root_contents: list[dict] = Field(default_factory=list)
+    pull_request_stats: dict[str, Any] = Field(default_factory=dict)
+    recent_pull_requests: list[dict[str, Any]] = Field(default_factory=list)
 
 
 def decode_readme(content: str):
@@ -153,17 +177,6 @@ class GitHubAPI:
 
         url = f"{self.base_url}/search/issues"
         params = {"q": f"repo:{owner}/{repo} type:issue state:{state}"}
-
-        response = requests.get(url, headers=self.headers, params=params)
-        response.raise_for_status()
-
-        return response.json()["total_count"]
-
-    def get_pr_count(self, owner: str, repo: str, is_closed: bool):
-        state = "closed" if is_closed else "open"
-
-        url = f"{self.base_url}/search/issues"
-        params = {"q": f"repo:{owner}/{repo} type:pr state:{state}"}
 
         response = requests.get(url, headers=self.headers, params=params)
         response.raise_for_status()
@@ -291,3 +304,121 @@ class GitHubAPI:
             })
 
         return result
+    
+    def get_pull_request_count(self, owner: str, repo: str, state: str = "all") -> int:
+        url = f"{self.base_url}/search/issues"
+        query = f"repo:{owner}/{repo} type:pr"
+
+        if state in {"open", "closed"}:
+            query += f" state:{state}"
+
+        params = {"q": query}
+        response = requests.get(url, headers=self.headers, params=params)
+        response.raise_for_status()
+        return response.json()["total_count"]
+
+
+    def get_merged_pull_request_count(self, owner: str, repo: str) -> int:
+        url = f"{self.base_url}/search/issues"
+        params = {"q": f"repo:{owner}/{repo} type:pr is:merged"}
+        response = requests.get(url, headers=self.headers, params=params)
+        response.raise_for_status()
+        return response.json()["total_count"]
+
+
+    def get_recent_pull_requests(self, owner: str, repo: str, limit: int = 30):
+        url = f"{self.base_url}/repos/{owner}/{repo}/pulls"
+        params = {
+            "state": "all",
+            "sort": "updated",
+            "direction": "desc",
+            "per_page": limit,
+        }
+
+        response = requests.get(url, headers=self.headers, params=params)
+        response.raise_for_status()
+        data = response.json()
+
+        recent_pull_requests = []
+        unique_requestors = set()
+        merged_recent = 0
+        draft_recent = 0
+        prs_30d = 0
+        prs_90d = 0
+        last_pr_at = None
+
+        now = datetime.utcnow()
+
+        for idx, item in enumerate(data):
+            author_data = item.get("user") or {}
+            author = author_data.get("login")
+
+            created_at_str = item.get("created_at")
+            updated_at_str = item.get("updated_at")
+            closed_at_str = item.get("closed_at")
+            merged_at_str = item.get("merged_at")
+
+            if not created_at_str or not updated_at_str:
+                continue
+
+            created_at = datetime.fromisoformat(created_at_str.replace("Z", "+00:00")).replace(tzinfo=None)
+            updated_at = datetime.fromisoformat(updated_at_str.replace("Z", "+00:00")).replace(tzinfo=None)
+            closed_at = (
+                datetime.fromisoformat(closed_at_str.replace("Z", "+00:00")).replace(tzinfo=None)
+                if closed_at_str else None
+            )
+            merged_at = (
+                datetime.fromisoformat(merged_at_str.replace("Z", "+00:00")).replace(tzinfo=None)
+                if merged_at_str else None
+            )
+
+            if idx == 0:
+                last_pr_at = updated_at
+
+            if author:
+                unique_requestors.add(author)
+
+            is_draft = item.get("draft", False)
+            is_merged = merged_at is not None
+
+            if is_merged:
+                merged_recent += 1
+
+            if is_draft:
+                draft_recent += 1
+
+            delta_days = (now - created_at).days
+            if delta_days <= 30:
+                prs_30d += 1
+            if delta_days <= 90:
+                prs_90d += 1
+
+            recent_pull_requests.append(
+                {
+                    "number": item.get("number"),
+                    "title": (item.get("title") or "")[:500],
+                    "author": author,
+                    "state": item.get("state"),
+                    "created_at": created_at.isoformat(),
+                    "updated_at": updated_at.isoformat(),
+                    "closed_at": closed_at.isoformat() if closed_at else None,
+                    "merged_at": merged_at.isoformat() if merged_at else None,
+                    "is_draft": is_draft,
+                    "is_merged": is_merged,
+                }
+            )
+
+        pr_stats = {
+            "total_count": self.get_pull_request_count(owner, repo, state="all"),
+            "open_count": self.get_pull_request_count(owner, repo, state="open"),
+            "closed_count": self.get_pull_request_count(owner, repo, state="closed"),
+            "merged_count": self.get_merged_pull_request_count(owner, repo),
+            "last_pr_at": last_pr_at.isoformat() if last_pr_at else None,
+            "prs_30d": prs_30d,
+            "prs_90d": prs_90d,
+            "unique_requestors_recent": len(unique_requestors),
+            "merged_recent": merged_recent,
+            "draft_recent": draft_recent,
+        }
+
+        return recent_pull_requests, pr_stats

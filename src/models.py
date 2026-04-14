@@ -24,8 +24,6 @@ class Repository(Base):
     * languages_map: языки репозитория в %
     # * open_issues_count: количество открытых issues
     # * closed_issues_count: количество закрытых issues
-    # * open_pr_count: количество открытых pullrequests
-    # * closed_pr_count: количество закрытых pullrequests
     * full_name: название репозитория
     * contributors_count: количество контрибьюторов
     * owner_location: местоположение владельца
@@ -36,6 +34,8 @@ class Repository(Base):
     * recent_commits: список последних коммитов
     * commit_stats: статистика по коммитам
     * root_contents: содержимое корневой директории
+    * pull_request_stats: статистика по pull requests
+    * recent_pull_requests: последние pull requests
     """
 
     __tablename__ = "repositories"
@@ -54,8 +54,6 @@ class Repository(Base):
     languages_map: Mapped[dict[str, float]] = mapped_column(JSON, default=dict)
     open_issues_count: Mapped[int] = mapped_column(Integer, nullable=False)
     closed_issues_count: Mapped[int] = mapped_column(Integer, nullable=False)
-    open_pr_count: Mapped[int] = mapped_column(Integer, nullable=False)
-    closed_pr_count: Mapped[int] = mapped_column(Integer, nullable=False)
     full_name: Mapped[str] = mapped_column(String, nullable=False)
     contributors_count: Mapped[int] = mapped_column(Integer, nullable=False)
     owner_location: Mapped[Optional[str]] = mapped_column(String, nullable=True)
@@ -66,7 +64,9 @@ class Repository(Base):
     recent_commits: Mapped[list[dict]] = mapped_column(JSON, default=list)
     commit_stats: Mapped[dict] = mapped_column(JSON, default=dict)
     root_contents: Mapped[list[dict]] = mapped_column(JSON, default=list)
-
+    pull_request_stats: Mapped[dict] = mapped_column(JSON, default=dict)
+    recent_pull_requests: Mapped[list[dict]] = mapped_column(JSON, default=list)
+    
     @classmethod
     def from_snapshot(cls, snapshot: RepositorySnapshot):
         return cls(**snapshot.model_dump())
