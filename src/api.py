@@ -3,7 +3,8 @@ import base64
 from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional, Any
 from datetime import datetime
-
+from datetime import datetime, time, timedelta
+import time
 
 class OwnerModel(BaseModel):
     login: str
@@ -127,6 +128,23 @@ def decode_readme(content: str):
     decoded = base64.b64decode(content)
     return decoded.decode("utf-8", errors="replace")
 
+def request_with_status_check(url, headers, params):
+    response = requests.get(url, headers=headers, params=params)
+    if response.status_code != 200:
+        difference_timedelta = datetime.fromtimestamp(int(response.headers['X-RateLimit-Reset'])) - datetime.today()
+        difference_in_seconds = difference_timedelta.seconds + 1
+        time.sleep(difference_in_seconds)
+        response = requests.get(url, headers=headers, params=params)
+    return response
+
+def request_with_status_check_2(url, headers):
+    response = requests.get(url, headers=headers)
+    if response.status_code != 200:
+        difference_timedelta = datetime.fromtimestamp(int(response.headers['X-RateLimit-Reset'])) - datetime.today()
+        difference_in_seconds = difference_timedelta.seconds + 1
+        time.sleep(difference_in_seconds)
+        response = requests.get(url, headers=headers)
+    return response
 
 class GitHubAPI:
     def __init__(self, token: str):
@@ -138,7 +156,7 @@ class GitHubAPI:
         }
 
     def _get_count_from_link(self, url, params=None):
-        response = requests.get(url, headers=self.headers, params=params)
+        response = request_with_status_check(url, self.headers, params)
         response.raise_for_status()
         link = response.headers.get("Link", "")
 
@@ -154,20 +172,20 @@ class GitHubAPI:
     def search_repo(self, query: str, page: int, per_page: int):
         url = f"{self.base_url}/search/repositories"
         params = {"q": query, "page": page, "per_page": per_page}
-        response = requests.get(url, headers=self.headers, params=params)
+        response = request_with_status_check(url, self.headers, params)
         response.raise_for_status()
         data = response.json()
         return [RepositoryModel.model_validate(repo) for repo in data["items"]]
 
     def get_repo(self, owner: str, repo: str):
         url = f"{self.base_url}/repos/{owner}/{repo}"
-        response = requests.get(url, headers=self.headers)
+        response = request_with_status_check_2(url, self.headers)
         response.raise_for_status()
         return RepositoryModel.model_validate(response.json())
 
     def get_readme(self, owner: str, repo: str):
         url = f"{self.base_url}/repos/{owner}/{repo}/readme"
-        response = requests.get(url, headers=self.headers)
+        response = request_with_status_check_2(url, self.headers)
         response.raise_for_status()
         data = response.json()
         content = data.get("content", "")
@@ -183,7 +201,7 @@ class GitHubAPI:
 
     def get_languages(self, owner: str, repo: str):
         url = f"{self.base_url}/repos/{owner}/{repo}/languages"
-        response = requests.get(url, headers=self.headers)
+        response = request_with_status_check_2(url, self.headers)
         response.raise_for_status()
         data = response.json()
         total = sum(data.values())
@@ -203,7 +221,7 @@ class GitHubAPI:
             query += f" state:{state}"
 
         params = {"q": query}
-        response = requests.get(url, headers=self.headers, params=params)
+        response = request_with_status_check(url, self.headers, params)
         response.raise_for_status()
         return response.json()["total_count"]
 
@@ -217,7 +235,7 @@ class GitHubAPI:
             "per_page": limit,
         }
 
-        response = requests.get(url, headers=self.headers, params=params)
+        response = request_with_status_check(url, self.headers, params)
         response.raise_for_status()
         data = response.json()
 
@@ -316,14 +334,14 @@ class GitHubAPI:
         else:
             return None
 
-        response = requests.get(url, headers=self.headers)
+        response = request_with_status_check_2(url, self.headers)
         response.raise_for_status()
         data = response.json()
         return data.get("location")
 
     def has_github_actions(self, owner: str, repo: str) -> bool:
         url = f"{self.base_url}/repos/{owner}/{repo}/actions/workflows"
-        response = requests.get(url, headers=self.headers)
+        response = request_with_status_check_2(url, self.headers)
         response.raise_for_status()
 
         data = response.json()
@@ -331,7 +349,7 @@ class GitHubAPI:
 
     def get_recent_commits(self, owner: str, repo: str, limit: int = 30):
         url = f"{self.base_url}/repos/{owner}/{repo}/commits"
-        response = requests.get(url, headers=self.headers, params={"per_page": limit})
+        response = request_with_status_check(url, self.headers, {"per_page": limit})
         response.raise_for_status()
 
         data = response.json()
@@ -406,7 +424,7 @@ class GitHubAPI:
 
     def get_root_contents(self, owner: str, repo: str) -> list[dict]:
         url = f"{self.base_url}/repos/{owner}/{repo}/contents"
-        response = requests.get(url, headers=self.headers)
+        response = request_with_status_check_2(url, self.headers)
 
         if response.status_code == 404:
             return []
@@ -434,7 +452,7 @@ class GitHubAPI:
             query += f" state:{state}"
 
         params = {"q": query}
-        response = requests.get(url, headers=self.headers, params=params)
+        response = request_with_status_check(url, self.headers, params)
         response.raise_for_status()
         return response.json()["total_count"]
 
@@ -442,7 +460,7 @@ class GitHubAPI:
     def get_merged_pull_request_count(self, owner: str, repo: str) -> int:
         url = f"{self.base_url}/search/issues"
         params = {"q": f"repo:{owner}/{repo} type:pr is:merged"}
-        response = requests.get(url, headers=self.headers, params=params)
+        response = request_with_status_check(url, self.headers, params)
         response.raise_for_status()
         return response.json()["total_count"]
 
@@ -456,7 +474,7 @@ class GitHubAPI:
             "per_page": limit,
         }
 
-        response = requests.get(url, headers=self.headers, params=params)
+        response = request_with_status_check(url, self.headers, params)
         response.raise_for_status()
         data = response.json()
 
@@ -543,3 +561,4 @@ class GitHubAPI:
         }
 
         return recent_pull_requests, pr_stats
+
