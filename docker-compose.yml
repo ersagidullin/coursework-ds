@@ -1,0 +1,66 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: coursework_postgres
+    environment:
+      POSTGRES_DB: github_research
+      POSTGRES_USER: github_user
+      POSTGRES_PASSWORD: github_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U github_user -d github_research"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  etl:
+    build: .
+    container_name: coursework_etl
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
+    restart: "no"
+
+  metabase:
+    image: metabase/metabase:latest
+    container_name: coursework_metabase
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    volumes:
+      - metabase_data:/metabase-data
+    environment:
+      MB_DB_FILE: /metabase-data/metabase.db
+
+  metabase-setup:
+    image: alpine:3.20
+    container_name: coursework_metabase_setup
+    depends_on:
+      - metabase
+      - postgres
+    volumes:
+      - ./metabase-setup.sh:/metabase-setup.sh:ro
+    environment:
+      MB_URL: http://metabase:3000
+      MB_ADMIN_EMAIL: admin@example.com
+      MB_ADMIN_PASSWORD: admin12345
+
+      TARGET_DB_HOST: postgres
+      TARGET_DB_PORT: 5432
+      TARGET_DB_DBNAME: github_research
+      TARGET_DB_USER: github_user
+      TARGET_DB_PASSWORD: github_password
+    command: sh /metabase-setup.sh
+    restart: "no"
+
+volumes:
+  postgres_data:
+  metabase_data:

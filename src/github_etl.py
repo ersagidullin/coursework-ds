@@ -121,7 +121,7 @@ if __name__ == "__main__":
         database_url=DATABASE_URL,
         delay=4.0,
         batch_size=5,
-        batches_per_send=10,
+        batches_per_send=2,
     )
 
     etl.load_repositories(
