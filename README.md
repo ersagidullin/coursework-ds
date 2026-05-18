@@ -9,8 +9,6 @@ git clone <URL_репозитория>
 cd <название_папки_проекта>
 ```
 
----
-
 ### 2. Создайте файл `.env`
 
 В корне проекта создайте файл `.env` и добавьте в него следующие переменные окружения:
@@ -20,15 +18,11 @@ DATABASE_URL=postgresql://github_user:github_password@postgres:5432/github_resea
 GITHUB_TOKEN=Your_GitHub_Token
 ```
 
----
-
 ### 3. Запустите проект через Docker Compose
 
 ```bash
 docker compose up --build
 ```
-
----
 
 # Что произойдет при запуске
 
@@ -43,8 +37,6 @@ Metabase будет доступен по адресу:
 ```text
 http://localhost:3000
 ```
-
-
 
 ## Правила работы с репозиторием
 
